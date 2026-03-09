@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "tinkerforge": "^2.1.35"
+  }
+}
