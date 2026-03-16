@@ -1,0 +1,48 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "tinkerforge": {
+    "ip": "172.20.10.242",
+    "port": 4223,
+    "reconnect": true,
+    "autoReconnectAttempts": 5
+  },
+  "sensors": {
+    "temperature": {
+      "enabled": true,
+      "interval": 5000
+    },
+    "light": {
+      "enabled": true,
+      "interval": 5000
+    },
+    "humidity": {
+      "enabled": true,
+      "interval": 5000
+    },
+    "motion": {
+      "enabled": true,
+      "interval": 1000
+    },
+    "nfc": {
+      "enabled": true,
+      "interval": 1000
+    }
+  },
+  "actors": {
+    "speaker": {
+      "enabled": true
+    },
+    "lcd": {
+      "enabled": true
+    },
+    "button": {
+      "enabled": true
+    },
+    "display": {
+      "enabled": true
+    }
+  }
+}
