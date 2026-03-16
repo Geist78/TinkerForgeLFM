@@ -1,7 +1,7 @@
 // TinkerForge Device UIDs and Configuration
 module.exports = {
   // Sensors
-  TEMPERATURE_SENSOR_UID: '1234',  // PTC Bricklet 2.0
+  TEMPERATURE_SENSOR_UID: 'Wcg',   // PTC Bricklet 2.0
   LIGHT_SENSOR_UID: 'Pdw',         // Ambient Light Bricklet 3.0
   HUMIDITY_SENSOR_UID: 'ViW',      // Humidity Bricklet 2.0
   MOTION_DETECTOR_UID: 'ML4',      // Motion Detector Bricklet 2.0
@@ -9,11 +9,11 @@ module.exports = {
 
   // Actors
   SPEAKER_UID: 'R7M',              // Piezo Speaker Bricklet 2.0
-  DISPLAY_UID: '24Kj',             // E-Paper 296x128 Bricklet
-  SEGMENT_DISPLAY_UID: 'GH3',      // 4x7 Segment Display
+  DISPLAY_UID: '24KJ',             // E-Paper 296x128 Bricklet
+  SEGMENT_DISPLAY_UID: 'Tre',      // 4x7 Segment Display 4x7 Bricklet 2.0
   BUTTON_UID: 'Vd8',               // Dual Button Bricklet 2.0
   RGB_BUTTON_UID: '23Qx',          // RGB LED Button Bricklet
-  LCD_DISPLAY_UID: '24Rh',         // E-Paper 296x128 Bricklet
+  LCD_DISPLAY_UID: '24Rh',         // LCD 128x64 Bricklet
 
   // Server Config
   HOST: '172.20.10.242',
