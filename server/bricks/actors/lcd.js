@@ -9,7 +9,6 @@ class LCDDisplay {
   }
 
   async init() {
-    console.log("AAA")
     this.bricklet = new this.Tinkerforge.BrickletLCD128x64(this.uid, this.ipcon);
     
     // Register draw status callback
@@ -19,12 +18,7 @@ class LCDDisplay {
     
     // Initialize with welcome message
     try {
-      this.fillDisplay(this.Tinkerforge.BrickletLCD128x64.COLOR_WHITE);
-      this.drawText(16, 20, this.Tinkerforge.BrickletLCD128x64.FONT_24X32,
-                    this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
-                    this.Tinkerforge.BrickletLCD128x64.ORIENTATION_HORIZONTAL,
-                    'Ready!');
-      this.draw();
+      this.clear();
       console.log(`📺 LCD Display initialized`);
     } catch (e) {
       console.warn(`⚠️  Could not initialize display: ${e.message}`);
@@ -36,14 +30,9 @@ class LCDDisplay {
     console.log(`📺 Display Status: ${states[drawStatus] || 'Unknown'}`);
   }
 
-  fillDisplay(color) {
+  drawText(x, y, font, color,  text) {
     if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.fillDisplay(color);
-  }
-
-  drawText(x, y, font, color, orientation, text) {
-    if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.drawText(x, y, font, color, orientation, text);
+    this.bricklet.drawText(x, y, font, color, text);
     console.log(`📺 Text: "${text}"`);
     return {
       actor: 'lcd',
@@ -70,7 +59,7 @@ class LCDDisplay {
 
   clear() {
     if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.fillDisplay(this.Tinkerforge.BrickletLCD128x64.COLOR_WHITE);
+    this.bricklet.clearDisplay();
     console.log(`📺 Display cleared`);
     return {
       actor: 'lcd',
@@ -79,31 +68,19 @@ class LCDDisplay {
     };
   }
 
-  draw() {
-    if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.draw();
-    return {
-      actor: 'lcd',
-      action: 'draw',
-      timestamp: new Date().toISOString()
-    };
-  }
-
   async displayMessage(lines = []) {
     try {
-      this.fillDisplay(this.Tinkerforge.BrickletLCD128x64.COLOR_WHITE);
+      this.clear();
       
       let yPos = 10;
-      const fontType = this.Tinkerforge.BrickletLCD128x64.FONT_18X24;
+      const fontType = this.Tinkerforge.BrickletLCD128x64.FONT_12X32;
       const color = this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK;
-      const orientation = this.Tinkerforge.BrickletLCD128x64.ORIENTATION_HORIZONTAL;
       
       for (const line of lines) {
-        this.drawText(10, yPos, fontType, color, orientation, line);
+        this.drawText(10, yPos, fontType, color, line);
         yPos += 30;
       }
       
-      this.draw();
       return {
         actor: 'lcd',
         action: 'displayMessage',
@@ -117,11 +94,12 @@ class LCDDisplay {
   }
 
   async writeLine(line = 0, column = 0, text = 'Hello Luca') {
-    // For E-Paper, calculate pixel position from line/column
     const x = column * 12;
     const y = line * 16;
-    return this.drawText(x, y, 0, this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
-                         this.Tinkerforge.BrickletLCD128x64.ORIENTATION_HORIZONTAL, text);
+
+    return this.drawText(x, y, this.Tinkerforge.BrickletLCD128x64.FONT_24X32,
+                    this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
+                    text);
   }
 }
 
@@ -138,6 +116,16 @@ if (require.main === module) {
   const ipcon = new Tinkerforge.IPConnection();
   const lcd = new LCDDisplay(ipcon);
 
+  function shutdown(ipcon, lcd) {
+    try {
+      lcd.clear();
+    } catch (_) {}
+
+    try {
+      ipcon.disconnect();
+    } catch (_) {}
+  }
+
   ipcon.connect(host, port, (error) => {
     if (error) {
       console.error(`Connect error: ${error}`);
@@ -148,15 +136,24 @@ if (require.main === module) {
   ipcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
     try {
       await lcd.init();
-      lcd.writeLine(0, 0, "Maik");
+      // await lcd.writeLine(1, 1, "LUCA CHRIS STRÄTER ID");
+      await lcd.displayMessage(["Dies ist ein Test", "Ist das Zeile 2?", "Zeile 3"])
+
       console.log(`LCD done via ${host}:${port}`);
     } catch (err) {
       console.error(`LCD error: ${err.message}`);
-    } finally {
-      setTimeout(() => {
-        ipcon.disconnect();
-        process.exit(0);
-      }, 1000);
+      shutdown(ipcon, lcd);
+      process.exit(1);
     }
+  });
+
+  process.on('SIGINT', () => {
+    shutdown(ipcon, lcd);
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    shutdown(ipcon, lcd);
+    process.exit(0);
   });
 }
