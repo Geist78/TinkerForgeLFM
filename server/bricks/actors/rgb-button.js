@@ -15,36 +15,65 @@ class RGBButton {
       this.onButtonStateChanged(state);
     });
 
+    // Default idle color is green.
+    this.setGreen();
+
     return true;
   }
 
   onButtonStateChanged(state) {
     const label = state === 0 ? 'released' : 'pressed';
+    if (state === 0) {
+      this.setGreen();
+    } else {
+      this.setRed();
+    }
     console.log(`RGB button ${label}`);
   }
 
-  setColor(r = 255, g = 0, b = 0) {
+  setGreen() {
     if (!this.bricklet) throw new Error('RGB button not initialized');
-
-    const red = Math.max(0, Math.min(255, Number(r) || 0));
-    const green = Math.max(0, Math.min(255, Number(g) || 0));
-    const blue = Math.max(0, Math.min(255, Number(b) || 0));
-
-    this.bricklet.setColor(red, green, blue);
-    console.log(`RGB button color set to (${red}, ${green}, ${blue})`);
+    this.bricklet.setColor(0, 255, 0);
+    console.log('RGB button color set to green');
 
     return {
       actor: 'rgbButton',
-      action: 'setColor',
-      r: red,
-      g: green,
-      b: blue,
+      action: 'setGreen',
+      r: 0,
+      g: 255,
+      b: 0,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  setRed() {
+    if (!this.bricklet) throw new Error('RGB button not initialized');
+    this.bricklet.setColor(255, 0, 0);
+    console.log('RGB button color set to red');
+
+    return {
+      actor: 'rgbButton',
+      action: 'setRed',
+      r: 255,
+      g: 0,
+      b: 0,
       timestamp: new Date().toISOString()
     };
   }
 
   setOff() {
-    return this.setColor(0, 0, 0);
+    if (!this.bricklet) throw new Error('RGB button not initialized');
+    this.bricklet.setColor(0, 0, 0);
+    console.log('RGB button color set to off');
+
+    return {
+      actor: 'rgbButton',
+      action: 'setOff',
+      r: 0,
+      g: 0,
+      b: 0,
+      timestamp: new Date().toISOString()
+    };
   }
 }
 
@@ -58,42 +87,8 @@ if (require.main === module) {
   const host = process.env.TF_HOST || config.tinkerforge?.ip || '127.0.0.1';
   const port = Number(process.env.TF_PORT || config.tinkerforge?.port || 4223);
 
-  const mode = (process.argv[2] || 'cycle').toLowerCase();
-  const r = Number(process.argv[3] || 0);
-  const g = Number(process.argv[4] || 0);
-  const b = Number(process.argv[5] || 255);
-  const cycleDelayMs = Number(process.argv[3] || 300);
-  let cycleTimer = null;
-
-  function hsvToRgb(h, s, v) {
-    const c = v * s;
-    const hp = h / 60;
-    const x = c * (1 - Math.abs((hp % 2) - 1));
-    let r1 = 0;
-    let g1 = 0;
-    let b1 = 0;
-
-    if (hp >= 0 && hp < 1) [r1, g1, b1] = [c, x, 0];
-    else if (hp >= 1 && hp < 2) [r1, g1, b1] = [x, c, 0];
-    else if (hp >= 2 && hp < 3) [r1, g1, b1] = [0, c, x];
-    else if (hp >= 3 && hp < 4) [r1, g1, b1] = [0, x, c];
-    else if (hp >= 4 && hp < 5) [r1, g1, b1] = [x, 0, c];
-    else if (hp >= 5 && hp < 6) [r1, g1, b1] = [c, 0, x];
-
-    const m = v - c;
-    return {
-      r: Math.round((r1 + m) * 255),
-      g: Math.round((g1 + m) * 255),
-      b: Math.round((b1 + m) * 255)
-    };
-  }
-
   function shutdown(ipcon, rgb) {
-    if (cycleTimer) {
-      clearInterval(cycleTimer);
-      cycleTimer = null;
-    }
-
+    rgb.setOff();
     try {
       ipcon.disconnect();
     } catch (_) {
@@ -113,32 +108,11 @@ if (require.main === module) {
   ipcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
     try {
       await rgb.init();
-
-      if (mode === 'cycle') {
-        let hue = 0;
-        rgb.setColor(255, 0, 0);
-        console.log(`RGB cycle started via ${host}:${port} (delay ${cycleDelayMs}ms)`);
-
-        cycleTimer = setInterval(() => {
-          const color = hsvToRgb(hue, 1, 1);
-          rgb.setColor(color.r, color.g, color.b);
-          hue = (hue + 12) % 360;
-        }, Math.max(30, cycleDelayMs));
-      } else {
-        rgb.setColor(r, g, b);
-        console.log(`RGB button write done via ${host}:${port}`);
-      }
+      console.log(`RGB button ready via ${host}:${port} (green idle, red when pressed)`);
     } catch (err) {
       console.error(`RGB button error: ${err.message}`);
       shutdown(ipcon, rgb);
       process.exit(1);
-    }
-
-    if (mode !== 'cycle') {
-      setTimeout(() => {
-        shutdown(ipcon, rgb);
-        process.exit(0);
-      }, 1000);
     }
   });
 
