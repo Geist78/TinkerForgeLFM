@@ -15,36 +15,65 @@ class RGBButton {
       this.onButtonStateChanged(state);
     });
 
+    // Default idle color is green.
+    this.setGreen();
+
     return true;
   }
 
   onButtonStateChanged(state) {
     const label = state === 0 ? 'released' : 'pressed';
+    if (state === 0) {
+      this.setGreen();
+    } else {
+      this.setRed();
+    }
     console.log(`RGB button ${label}`);
   }
 
-  setColor(r = 255, g = 0, b = 0) {
+  setGreen() {
     if (!this.bricklet) throw new Error('RGB button not initialized');
-
-    const red = Math.max(0, Math.min(255, Number(r) || 0));
-    const green = Math.max(0, Math.min(255, Number(g) || 0));
-    const blue = Math.max(0, Math.min(255, Number(b) || 0));
-
-    this.bricklet.setColor(red, green, blue);
-    console.log(`RGB button color set to (${red}, ${green}, ${blue})`);
+    this.bricklet.setColor(0, 255, 0);
+    console.log('RGB button color set to green');
 
     return {
       actor: 'rgbButton',
-      action: 'setColor',
-      r: red,
-      g: green,
-      b: blue,
+      action: 'setGreen',
+      r: 0,
+      g: 255,
+      b: 0,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  setRed() {
+    if (!this.bricklet) throw new Error('RGB button not initialized');
+    this.bricklet.setColor(255, 0, 0);
+    console.log('RGB button color set to red');
+
+    return {
+      actor: 'rgbButton',
+      action: 'setRed',
+      r: 255,
+      g: 0,
+      b: 0,
       timestamp: new Date().toISOString()
     };
   }
 
   setOff() {
-    return this.setColor(0, 0, 0);
+    if (!this.bricklet) throw new Error('RGB button not initialized');
+    this.bricklet.setColor(0, 0, 0);
+    console.log('RGB button color set to off');
+
+    return {
+      actor: 'rgbButton',
+      action: 'setOff',
+      r: 0,
+      g: 0,
+      b: 0,
+      timestamp: new Date().toISOString()
+    };
   }
 }
 
@@ -58,9 +87,13 @@ if (require.main === module) {
   const host = process.env.TF_HOST || config.tinkerforge?.ip || '127.0.0.1';
   const port = Number(process.env.TF_PORT || config.tinkerforge?.port || 4223);
 
-  const r = Number(process.argv[2] || 255);
-  const g = Number(process.argv[3] || 0);
-  const b = Number(process.argv[4] || 0);
+  function shutdown(ipcon, rgb) {
+    rgb.setOff();
+    try {
+      ipcon.disconnect();
+    } catch (_) {
+    }
+  }
 
   const ipcon = new Tinkerforge.IPConnection();
   const rgb = new RGBButton(ipcon);
@@ -75,15 +108,21 @@ if (require.main === module) {
   ipcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
     try {
       await rgb.init();
-      rgb.setColor(r, g, b);
-      console.log(`RGB button write done via ${host}:${port}`);
+      console.log(`RGB button ready via ${host}:${port} (green idle, red when pressed)`);
     } catch (err) {
       console.error(`RGB button error: ${err.message}`);
-    } finally {
-      setTimeout(() => {
-        ipcon.disconnect();
-        process.exit(0);
-      }, 1000);
+      shutdown(ipcon, rgb);
+      process.exit(1);
     }
+  });
+
+  process.on('SIGINT', () => {
+    shutdown(ipcon, rgb);
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    shutdown(ipcon, rgb);
+    process.exit(0);
   });
 }
