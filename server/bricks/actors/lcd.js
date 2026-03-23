@@ -30,16 +30,13 @@ class LCDDisplay {
     console.log(`📺 Display Status: ${states[drawStatus] || 'Unknown'}`);
   }
 
-  drawText(x, y, font, color,  text) {
-    if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.drawText(x, y, font, color, text);
-    console.log(`📺 Text: "${text}"`);
-    return {
-      actor: 'lcd',
-      action: 'drawText',
-      text,
-      timestamp: new Date().toISOString()
-    };
+  drawText(x, y, font, color, text) {
+    return new Promise((resolve, reject) => {
+      this.bricklet.drawText(x, y, font, color, text, (error) => {
+        if (error) return reject(error);
+        resolve();
+      });
+    });
   }
 
   drawLine(x1, y1, x2, y2, color) {
@@ -58,14 +55,12 @@ class LCDDisplay {
   }
 
   clear() {
-    if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.clearDisplay();
-    console.log(`📺 Display cleared`);
-    return {
-      actor: 'lcd',
-      action: 'clear',
-      timestamp: new Date().toISOString()
-    };
+    return new Promise((resolve, reject) => {
+      this.bricklet.clearDisplay((error) => {
+        if (error) return reject(error);
+        resolve();
+      });
+    });
   }
 
   async displayMessage(lines = []) {
