@@ -16,7 +16,7 @@ module.exports = {
   LCD_DISPLAY_UID: '24Rh',         // LCD 128x64 Bricklet
 
   // Server Config
-  HOST: '172.20.10.242',
+  HOST: '172.20.89.107',
   PORT: 4223,
   
   // Sensor Read Intervals (ms)
