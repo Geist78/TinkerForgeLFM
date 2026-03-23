@@ -9,6 +9,7 @@
     "display:write": "node scripts/display-write.js",
     "rgb:set": "node bricks/actors/rgb-button.js",
     "rgb:cycle": "node bricks/actors/rgb-button.js cycle",
+    "sensors:live": "node scripts/sensors-live.js",
     "devices:log": "node scripts/all-devices-log.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

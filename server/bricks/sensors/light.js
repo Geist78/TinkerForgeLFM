@@ -11,6 +11,7 @@ class LightSensor {
         this.bricklet = null;
         this.uid = LIGHT_SENSOR_UID;
         this.Tinkerforge = require('tinkerforge');
+        this.silent = process.env.SENSORS_SILENT === '1';
         this.lastReading = null;
         this.pollTimer = null;
     }
@@ -39,7 +40,9 @@ class LightSensor {
         };
 
         this.lastReading = reading;
-        console.log(`[LIGHT] ${reading.lux} lx (${reading.illuminance}) @ ${reading.timestamp}`);
+        if (!this.silent) {
+            console.log(`[LIGHT] ${reading.lux} lx (${reading.illuminance}) @ ${reading.timestamp}`);
+        }
         return reading;
     }
 

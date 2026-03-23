@@ -31,6 +31,15 @@ class RGBButton {
     console.log(`RGB button ${label}`);
   }
 
+  setColor(r, g, b) {
+    if (!this.bricklet) throw new Error('RGB button not initialized');
+    const red   = Math.max(0, Math.min(255, Number(r) || 0));
+    const green = Math.max(0, Math.min(255, Number(g) || 0));
+    const blue  = Math.max(0, Math.min(255, Number(b) || 0));
+    this.bricklet.setColor(red, green, blue);
+    return { actor: 'rgbButton', action: 'setColor', r: red, g: green, b: blue, timestamp: new Date().toISOString() };
+  }
+
   setGreen() {
     if (!this.bricklet) throw new Error('RGB button not initialized');
     this.bricklet.setColor(0, 255, 0);
