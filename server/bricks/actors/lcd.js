@@ -18,7 +18,12 @@ class LCDDisplay {
     
     // Initialize with welcome message
     try {
-      this.clear();
+      this.fillDisplay(this.Tinkerforge.BrickletLCD128x64.COLOR_WHITE);
+      this.drawText(16, 20, this.Tinkerforge.BrickletLCD128x64.FONT_24X32,
+                    this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
+                    this.Tinkerforge.BrickletLCD128x64.ORIENTATION_HORIZONTAL,
+                    'Ready!');
+      this.draw();
       console.log(`📺 LCD Display initialized`);
     } catch (e) {
       console.warn(`⚠️  Could not initialize display: ${e.message}`);
@@ -27,12 +32,16 @@ class LCDDisplay {
 
   onDrawStatus(drawStatus) {
     const states = { 0: 'Idle', 1: 'Busy', 2: 'Error' };
-    console.log(`📺 Display Status: ${states[drawStatus] || 'Unknown'}`);
   }
 
-  drawText(x, y, font, color,  text) {
+  fillDisplay(color) {
     if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.drawText(x, y, font, color, text);
+    this.bricklet.fillDisplay(color);
+  }
+
+  drawText(x, y, font, color, orientation, text) {
+    if (!this.bricklet) throw new Error('Display not initialized');
+    this.bricklet.drawText(x, y, font, color, orientation, text);
     console.log(`📺 Text: "${text}"`);
     return {
       actor: 'lcd',
@@ -59,11 +68,21 @@ class LCDDisplay {
 
   clear() {
     if (!this.bricklet) throw new Error('Display not initialized');
-    this.bricklet.clearDisplay();
+    this.bricklet.fillDisplay(this.Tinkerforge.BrickletLCD128x64.COLOR_WHITE);
     console.log(`📺 Display cleared`);
     return {
       actor: 'lcd',
       action: 'clear',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  draw() {
+    if (!this.bricklet) throw new Error('Display not initialized');
+    this.bricklet.draw();
+    return {
+      actor: 'lcd',
+      action: 'draw',
       timestamp: new Date().toISOString()
     };
   }
@@ -96,10 +115,8 @@ class LCDDisplay {
   async writeLine(line = 0, column = 0, text = 'Hello Luca') {
     const x = column * 12;
     const y = line * 16;
-
-    return this.drawText(x, y, this.Tinkerforge.BrickletLCD128x64.FONT_24X32,
-                    this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
-                    text);
+    return this.drawText(x, y, 0, this.Tinkerforge.BrickletLCD128x64.COLOR_BLACK,
+                         this.Tinkerforge.BrickletLCD128x64.ORIENTATION_HORIZONTAL, text);
   }
 }
 
