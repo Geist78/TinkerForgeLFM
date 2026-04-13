@@ -1,9 +1,6 @@
 const { LCD_DISPLAY_UID } = require('../../utilities/constants');
 const Tinkerforge = require('tinkerforge');
 
-const SCREEN_WIDTH = 128;
-const SCREEN_HEIGHT = 64;
-
 class LCDDisplay {
   constructor(ipcon) {
     this.ipcon = ipcon;
