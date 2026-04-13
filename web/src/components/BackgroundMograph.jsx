@@ -11,7 +11,7 @@ const BackgroundMograph = () => {
     let animationFrameId;
 
     let particles = [];
-    const particleCount = 160;
+    const particleCount = 260;
     const connectionDistance = 150;
     let mouse = { x: null, y: null };
 
