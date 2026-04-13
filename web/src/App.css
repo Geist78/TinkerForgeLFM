@@ -1,0 +1,10 @@
+/* App.css - minimal overrides */
+.dashboard {
+  background: radial-gradient(circle at 30% 30%, rgba(0, 255, 213, 0.03) 0%, transparent 70%);
+}
+
+/* Ensure font rendering is crisp */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
