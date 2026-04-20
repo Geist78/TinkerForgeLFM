@@ -1,0 +1,27 @@
+{
+  "41": {
+    "name": "Unbekannter Benutzer",
+    "firstSeen": "2026-04-20T12:05:47.265Z",
+    "lastSeen": "2026-04-20T12:08:14.753Z"
+  },
+  "045C867AFE1D91": {
+    "name": "Benutzer 1",
+    "firstSeen": "2026-04-15T00:00:00.000Z",
+    "lastSeen": "2026-04-15T00:00:00.000Z"
+  },
+  "04DA7B7AFE1D90": {
+    "name": "Administration",
+    "firstSeen": "2026-04-20T12:01:25.829Z",
+    "lastSeen": "2026-04-20T12:10:42.370Z"
+  },
+  "04EC6642B91190": {
+    "name": "Unbekannter Benutzer",
+    "firstSeen": "2026-04-20T12:02:59.106Z",
+    "lastSeen": "2026-04-20T12:10:52.494Z"
+  },
+  "04E3F4B78F6180": {
+    "name": "Mitarbeiter",
+    "firstSeen": "2026-04-20T12:03:08.895Z",
+    "lastSeen": "2026-04-20T12:11:02.477Z"
+  }
+}

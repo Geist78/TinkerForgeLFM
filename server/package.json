@@ -2,10 +2,10 @@
   "name": "tinkerforge-lfm-server",
   "version": "1.0.0",
   "description": "TinkerForge IoT Server with sensors and actors",
-  "main": "server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node main.js",
+    "dev": "node main.js",
     "display:write": "node scripts/display-write.js",
     "rgb:set": "node bricks/actors/rgb-button.js",
     "rgb:cycle": "node bricks/actors/rgb-button.js cycle",
