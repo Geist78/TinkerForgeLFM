@@ -16,6 +16,7 @@ class NFCSensor {
 		this.lastState = null;
 		this.lastTagHex = null;
 		this.requestTimer = null;
+		this.pendingReadResolver = null;
 	}
 
 	async init() {
@@ -95,11 +96,56 @@ class NFCSensor {
 					console.log(`[NFC] Tag detected type=${tagType} id=${hexId || 'N/A'} @ ${reading.timestamp}`);
 				}
 				this.lastTagHex = hexId;
+				if (this.pendingReadResolver) {
+					this.pendingReadResolver();
+					this.pendingReadResolver = null;
+				}
 			},
 			(err) => {
+				const fallbackId = String(err ?? '').trim();
+				if (/^\d+$/.test(fallbackId) || /^[0-9A-Fa-f]+$/.test(fallbackId)) {
+					const reading = {
+						sensor: 'nfc',
+						uid: this.uid,
+						tagType: null,
+						tagId: [],
+						tagHex: fallbackId.toUpperCase(),
+						timestamp: new Date().toISOString()
+					};
+					this.lastReading = reading;
+					this.lastTagHex = reading.tagHex;
+					if (!this.silent) {
+						console.log(`[NFC] Fallback tag detected id=${reading.tagHex} @ ${reading.timestamp}`);
+					}
+					if (this.pendingReadResolver) {
+						this.pendingReadResolver();
+						this.pendingReadResolver = null;
+					}
+					return;
+				}
 				console.error(`[NFC] Read tag ID error: ${err}`);
+				if (this.pendingReadResolver) {
+					this.pendingReadResolver();
+					this.pendingReadResolver = null;
+				}
 			}
 		);
+	}
+
+	async readOnce(timeoutMs = 1200) {
+		if (!this.bricklet) return;
+
+		await new Promise((resolve) => {
+			let isDone = false;
+			const finish = () => {
+				if (isDone) return;
+				isDone = true;
+				resolve();
+			};
+			this.pendingReadResolver = finish;
+			this.requestTagId();
+			setTimeout(finish, Math.max(300, Number(timeoutMs) || 1200));
+		});
 	}
 
 	startPolling(intervalMs = SENSOR_INTERVAL_FAST || 1000) {

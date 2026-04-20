@@ -6,65 +6,92 @@ import AccessLogModal from './components/AccessLogModal';
 import logoImg from './assets/Logo.png';
 import AggregatedLoadWave from './components/AggregatedLoadWave';
 
+const LIVE_DATA_API_URL = import.meta.env.VITE_LIVE_DATA_API_URL || 'http://localhost:3001/api/live-data';
+
 function App() {
   const [metrics, setMetrics] = useState({
-    serverTemp: 24,
-    ambientTemp: 22,
-    humidity: 45,
-    powerDraw: 0.84,
+    ambientTemp: null,
+    humidity: null,
+    lightLevel: null,
+    powerDraw: null,
   });
 
   const [history, setHistory] = useState({
-    serverTemp: Array.from({ length: 20 }, () => 22 + Math.random() * 4),
-    ambientTemp: Array.from({ length: 20 }, () => 20 + Math.random() * 3),
-    humidity: Array.from({ length: 20 }, () => 40 + Math.random() * 10),
+    ambientTemp: [],
+    humidity: [],
+    lightLevel: [],
   });
 
-  const [masterLogs] = useState([
-    { time: '14:22:11', user: 'SYS_ADMIN (01)', action: 'Puffer Reset', result: 'GEWÄHRT', status: 'success' },
-    { time: '14:18:05', user: 'ANONYMOUS_IP', action: 'SSH Setup', result: 'ABGEFANGEN', status: 'danger' },
-    { time: '14:15:22', user: 'MAINT_BOT_2', action: 'Sektorscan', result: 'ERFOLGREICH', status: 'success' },
-    { time: '14:10:01', user: 'UNKNOWN_USR', action: 'Portscan', result: 'BLOCKIERT', status: 'warning' },
-    { time: '14:05:59', user: 'MAINT_BOT_2', action: 'Diagnose', result: 'ERFOLGREICH', status: 'success' },
-    { time: '13:55:12', user: 'SYS_ADMIN (01)', action: 'Berechtigung', result: 'GEWÄHRT', status: 'success' },
-    { time: '13:42:12', user: 'GHOST_ID', action: 'Dateizugriff', result: 'ABGELEHNT', status: 'danger' },
-    { time: '13:30:45', user: 'BOT_AUTO_9', action: 'Knotensync', result: 'WIEDERHOLUNG', status: 'warning' },
-    { time: '13:15:00', user: 'SYS_ADMIN (01)', action: 'Kernel Patch', result: 'GEWÄHRT', status: 'success' },
-  ]);
+  const [masterLogs, setMasterLogs] = useState([]);
 
   const [selectedMetric, setSelectedMetric] = useState(null);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [accessStatus, setAccessStatus] = useState({
+    isAdminLoggedIn: false,
+    lastLoginAt: null,
+    lastCardId: '-',
+    lastCardRole: 'Unbekannter Benutzer'
+  });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(prev => {
+    let isMounted = true;
+
+    const loadLiveData = async () => {
+      try {
+        const response = await fetch(LIVE_DATA_API_URL);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const liveData = await response.json();
         const next = {
-          serverTemp: Math.max(20, Math.min(30, prev.serverTemp + (Math.random() - 0.5))),
-          ambientTemp: Math.max(18, Math.min(25, prev.ambientTemp + (Math.random() - 0.5) * 0.5)),
-          humidity: Math.max(30, Math.min(60, prev.humidity + Math.floor((Math.random() - 0.5) * 2))),
-          powerDraw: Number((0.8 + Math.random() * 0.1).toFixed(2)),
+          ambientTemp: liveData.temperature ?? null,
+          humidity: liveData.humidity ?? null,
+          lightLevel: liveData.light ?? null,
+          powerDraw: liveData.powerDraw ?? null
         };
 
-        setHistory(h => ({
-          serverTemp: [...h.serverTemp, next.serverTemp].slice(-20),
-          ambientTemp: [...h.ambientTemp, next.ambientTemp].slice(-20),
-          humidity: [...h.humidity, next.humidity].slice(-20),
-        }));
+        if (!isMounted) return;
 
-        return next;
-      });
-    }, 3000);
-    return () => clearInterval(interval);
+        setMetrics(next);
+        setAccessStatus({
+          isAdminLoggedIn: Boolean(liveData.access?.isAdminLoggedIn),
+          lastLoginAt: liveData.access?.lastLoginAt ?? null,
+          lastCardId: liveData.access?.lastCardId ?? '-',
+          lastCardRole: liveData.access?.lastCardRole ?? 'Unbekannter Benutzer'
+        });
+        setMasterLogs(Array.isArray(liveData.accessLogs) ? liveData.accessLogs : []);
+        setHistory(h => ({
+          ambientTemp: next.ambientTemp === null ? h.ambientTemp : [...h.ambientTemp, next.ambientTemp].slice(-20),
+          humidity: next.humidity === null ? h.humidity : [...h.humidity, next.humidity].slice(-20),
+          lightLevel: next.lightLevel === null ? h.lightLevel : [...h.lightLevel, next.lightLevel].slice(-20)
+        }));
+      } catch (error) {
+        console.error('Fehler beim Laden der Live-Daten:', error);
+      }
+    };
+
+    loadLiveData();
+    const interval = setInterval(loadLiveData, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const openHistory = (id) => {
     const config = {
-      serverTemp: { title: 'SERVER TEMPERATUR', unit: '°C', color: 'var(--accent-primary)' },
       ambientTemp: { title: 'RAUMTEMPERATUR', unit: '°C', color: 'var(--accent-primary)' },
       humidity: { title: 'LUFTFEUCHTIGKEIT', unit: '%', color: 'var(--accent-secondary)' },
+      lightLevel: { title: 'LICHT LEVEL', unit: ' Lux', color: 'var(--accent-primary)' },
     };
     setSelectedMetric({ id, ...config[id] });
   };
+
+  const lastLoginText = accessStatus.lastLoginAt
+    ? new Date(accessStatus.lastLoginAt).toLocaleString('de-DE')
+    : 'Noch kein Login';
 
   return (
     <div className="dashboard">
@@ -78,19 +105,19 @@ function App() {
       </header>
 
       <section className="dashboard-section left-metrics animate-left delay-1">
-        <div className="metric-row clickable" onClick={() => openHistory('serverTemp')}>
+        <div className="metric-row clickable" onClick={() => openHistory('lightLevel')}>
           <div className="metric-header">
-            <span className="label">SERVER TEMPERATUR</span>
+            <span className="label">LICHT LEVEL</span>
             <div className="metric-value text-mono">
-              {Math.round(metrics.serverTemp)}<span className="metric-unit">°C</span>
+              {metrics.lightLevel === null ? '-' : Math.round(metrics.lightLevel)}<span className="metric-unit"> Lux</span>
             </div>
           </div>
           <div className="progress-bar-container">
-            <div className="progress-bar" style={{ width: `${(metrics.serverTemp / 40) * 100}%` }} />
+            <div className="progress-bar" style={{ width: `${Math.min(100, ((metrics.lightLevel ?? 0) / 400) * 100)}%` }} />
           </div>
           <div className="metric-bounds">
-            <span>UNTERGRENZE: 18°C</span>
-            <span>OBERGRENZE: 35°C</span>
+            <span>UNTERGRENZE: 0 Lux</span>
+            <span>OBERGRENZE: 400 Lux</span>
           </div>
         </div>
 
@@ -98,11 +125,11 @@ function App() {
           <div className="metric-header">
             <span className="label">RAUMTEMPERATUR</span>
             <div className="metric-value text-mono">
-              {Math.round(metrics.ambientTemp)}<span className="metric-unit">°C</span>
+              {metrics.ambientTemp === null ? '-' : Math.round(metrics.ambientTemp)}<span className="metric-unit">°C</span>
             </div>
           </div>
           <div className="progress-bar-container">
-            <div className="progress-bar" style={{ width: `${(metrics.ambientTemp / 35) * 100}%`, height: '4px' }} />
+            <div className="progress-bar" style={{ width: `${((metrics.ambientTemp ?? 0) / 35) * 100}%`, height: '4px' }} />
           </div>
         </div>
 
@@ -110,14 +137,14 @@ function App() {
           <div className="metric-header">
             <span className="label">LUFTFEUCHTIGKEIT</span>
             <div className="metric-value text-mono" style={{ color: 'var(--accent-secondary)' }}>
-              {metrics.humidity}<span className="metric-unit">%</span>
+              {metrics.humidity === null ? '-' : metrics.humidity}<span className="metric-unit">%</span>
             </div>
           </div>
           <div className="progress-bar-container">
             <div
               className="progress-bar"
               style={{
-                width: `${metrics.humidity}%`,
+                width: `${metrics.humidity ?? 0}%`,
                 backgroundColor: 'var(--accent-secondary)',
                 boxShadow: '0 0 15px var(--accent-secondary)'
               }}
@@ -132,13 +159,15 @@ function App() {
       <section className="dashboard-section power-section animate-left delay-2">
         <div className="metric-header">
           <span className="label">STROMVERBRAUCH</span>
-          <span className="text-mono" style={{ color: 'var(--accent-primary)', fontSize: '0.9rem' }}>{metrics.powerDraw} kW</span>
+          <span className="text-mono" style={{ color: 'var(--accent-primary)', fontSize: '0.9rem' }}>
+            {metrics.powerDraw === null ? '-' : `${metrics.powerDraw} kW`}
+          </span>
         </div>
         <div className="power-chart">
-          {[40, 60, 50, 80, 100, 70, 50, 60].map((h, i) => (
+          {[0, 0, 0, 0, 0, 0, 0, 0].map((h, i) => (
             <div
               key={i}
-              className={`bar ${i === 4 ? 'active' : ''}`}
+              className="bar"
               style={{ height: `${h}%` }}
             />
           ))}
@@ -163,26 +192,35 @@ function App() {
       <aside className="dashboard-section right-panel animate-right delay-1">
         <div className="access-header clickable" onClick={() => setShowLogModal(true)}>
           <span className="label heading-accent">ZUGRIFFSKONTROLLE</span>
-          <div className="live-indicator text-mono">AKTIV</div>
+          <div className="live-indicator text-mono">{accessStatus.isAdminLoggedIn ? 'ADMIN ONLINE' : 'UNBEKANNTER BENUTZER'}</div>
         </div>
 
         <div className="counters">
           <div className="counter-item auth">
-            <span className="label">AUTORISIERT</span>
-            <div className="counter-value text-mono">1.204</div>
+            <span className="label">ADMIN STATUS</span>
+            <div className="counter-value text-mono">{accessStatus.isAdminLoggedIn ? 'JA' : 'NEIN'}</div>
           </div>
           <div className="counter-item unauth">
-            <span className="label">UNBEFUGT</span>
+            <span className="label">LETZTE KARTE</span>
             <div className="counter-value text-mono" style={{ color: 'var(--accent-secondary)' }}>
-              003
+              {accessStatus.lastCardRole}
             </div>
           </div>
+        </div>
+
+        <div className="rack-row" style={{ marginBottom: '8px' }}>
+          <span>LETZTER LOGIN:</span>
+          <span className="text-mono">{lastLoginText}</span>
+        </div>
+        <div className="rack-row" style={{ marginBottom: '8px' }}>
+          <span>KARTEN-ID:</span>
+          <span className="text-mono">{accessStatus.lastCardId}</span>
         </div>
 
         <div className="logs-section">
           {masterLogs.slice(0, 3).map((log, i) => (
             <div key={i} className="log-item">
-              <div className="log-led" style={{ background: log.status === 'danger' ? 'var(--danger)' : log.status === 'warning' ? 'var(--accent-secondary)' : 'var(--accent-primary)' }} />
+              <div className="log-led" style={{ background: log.status === 'danger' ? 'var(--danger)' : 'var(--accent-primary)' }} />
               <div className="log-content">
                 <span className="log-title heading-accent">{log.user}</span>
                 <span className="log-text">{log.action}: {log.result}</span>
@@ -194,11 +232,7 @@ function App() {
       </aside>
 
 
-      <footer className="wave-container animate-bottom delay-3">
-        <span className="wave-label-left label heading-accent">GESAMTSYSTEMLAST</span>
-        <span className="wave-label-right text-mono">MAX: 92.4% | DURCHSCHN.: 41.1%</span>
-        <AggregatedLoadWave />
-      </footer>
+      
 
       <HistoryModal selectedMetric={selectedMetric} history={history} onClose={() => setSelectedMetric(null)} />
       {showLogModal && <AccessLogModal logs={masterLogs} onClose={() => setShowLogModal(false)} />}

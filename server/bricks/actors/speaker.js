@@ -26,9 +26,9 @@ class Speaker {
     });
   }
 
-  async beep(frequency = 1000, duration = 200) {
+  async beep(frequency = 1000, duration = 200, volume = 2) {
     return new Promise((resolve, reject) => {
-      this.device.setBeep(frequency, 0, duration, (err) => {
+      this.device.setBeep(frequency, volume, duration, (err) => {
         if (err) return reject(err);
         resolve();
       });
@@ -36,101 +36,29 @@ class Speaker {
   }
 
   async alarm_warning() {
-    const sequence = [];
-
-    // Phase 1: “Aufmerksamkeit wird gezogen”
-    for (let i = 0; i < 12; i++) {
-      const freq = 650 + i * 40; // langsam ansteigend
-      sequence.push({ f: freq, d: 120 });
-    }
-
-    sequence.push({ f: 0, d: 250 });
-
-    // Phase 2: Hauptwarnung (langsamer Sirenenbogen)
-    for (let cycle = 0; cycle < 3; cycle++) {
-      for (let i = 0; i < 50; i++) {
-        const t = i / 50;
-
-        // weiche, aber bedrohliche Welle
-        const wave = Math.sin(t * Math.PI);
-
-        const freq = 800 + wave * 500; // 800 → 1300 Hz
-
-        sequence.push({ f: Math.round(freq), d: 70 });
-      }
-
-      sequence.push({ f: 0, d: 350 });
-    }
-
-    // Phase 3: “Warning pulses” (wie ein System, das insistiert)
-    for (let i = 0; i < 10; i++) {
-      const freq = 1000 + (i % 2) * 200;
-
-      sequence.push({ f: freq, d: 140 });
-      sequence.push({ f: 0, d: 90 });
-    }
-
-    // Phase 4: letzter tiefer Druckton (kein Abschluss, eher Spannung)
-    sequence.push({ f: 720, d: 900 });
-    sequence.push({ f: 0, d: 600 });
-
-    // Play
-    for (const step of sequence) {
-      if (step.f === 0) {
-        await this.sleep(step.d);
-      } else {
-        await this.beep(step.f, step.d);
-      }
-    }
+    // Kurzer, leiser Warnhinweis
+    await this.beep(900, 120, 1);
+    await this.sleep(100);
+    await this.beep(900, 120, 1);
   }
 
   async alarm_critical() {
-    const sequence = [];
+    // Langer, anhaltender kritischer Alarmton
+    await this.beep(1350, 4000, 1);
+  }
 
-    // Phase 1: Aufbau (Bedrohung entsteht)
-    for (let i = 0; i < 25; i++) {
-      const t = i / 25;
-      const freq = 700 + t * 800; // 700 → 1500 Hz
-      sequence.push({ f: Math.round(freq), d: 80 });
-    }
+  async login_success() {
+    // Kurzer "Login erfolgreich"-Ton
+    await this.beep(1000, 90, 1);
+    await this.sleep(60);
+    await this.beep(1400, 140, 1);
+  }
 
-    sequence.push({ f: 0, d: 200 });
-
-    // Phase 2: Hauptsirene (wailing sweep)
-    for (let cycle = 0; cycle < 4; cycle++) {
-      for (let i = 0; i < 40; i++) {
-        const t = i / 40;
-
-        // Dreieckssweep (klassischer Sirenenkörper)
-        const wave = t < 0.5 ? t * 2 : (1 - t) * 2;
-
-        const freq = 800 + wave * 1000; // 800 → 1800 Hz
-
-        sequence.push({ f: Math.round(freq), d: 60 });
-      }
-
-      sequence.push({ f: 0, d: 300 });
-    }
-
-    // Phase 3: Eskalation (dringender Puls)
-    for (let i = 0; i < 30; i++) {
-      const freq = 1600 + (i % 2) * 300;
-      sequence.push({ f: freq, d: 50 });
-      sequence.push({ f: 0, d: 30 });
-    }
-
-    // Phase 4: letzter langer “Druckton”
-    sequence.push({ f: 2000, d: 1200 });
-    sequence.push({ f: 0, d: 500 });
-
-    // Play
-    for (const step of sequence) {
-      if (step.f === 0) {
-        await this.sleep(step.d);
-      } else {
-        await this.beep(step.f, step.d);
-      }
-    }
+  async login_denied() {
+    // Kurzer "Denied/Cancel"-Ton
+    await this.beep(650, 160, 1);
+    await this.sleep(50);
+    await this.beep(520, 220, 1);
   }
 
   async sleep(ms) {

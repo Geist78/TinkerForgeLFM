@@ -26,6 +26,7 @@ async function getAllSensorData() {
 
   await Promise.all(all.map((s) => s.init()));
   await Promise.all([t, l, h, m].map((s) => s.readOnce()));
+  await n.readOnce();
 
   all.forEach((s) => { if (s.stopPolling) s.stopPolling(); });
   try { ipcon.disconnect(); } catch (_) {}
