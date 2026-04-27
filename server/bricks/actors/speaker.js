@@ -26,7 +26,7 @@ class Speaker {
     });
   }
 
-  async beep(frequency = 1000, duration = 200, volume = 2) {
+  async beep(frequency = 1000, duration = 200, volume = 1) {
     return new Promise((resolve, reject) => {
       this.device.setBeep(frequency, volume, duration, (err) => {
         if (err) return reject(err);
