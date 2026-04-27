@@ -89,6 +89,45 @@ function App() {
     setSelectedMetric({ id, ...config[id] });
   };
 
+  const [availableUsers, setAvailableUsers] = useState({});
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(LIVE_DATA_API_URL.replace('/live-data', '/access/users'));
+        if (response.ok) {
+          const users = await response.json();
+          setAvailableUsers(users);
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  const handleWebLogin = async (cardId) => {
+    try {
+      await fetch(LIVE_DATA_API_URL.replace('/live-data', '/access/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId })
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+    }
+  };
+
+  const handleWebLogout = async () => {
+    try {
+      await fetch(LIVE_DATA_API_URL.replace('/live-data', '/access/logout'), {
+        method: 'POST'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   const lastLoginText = accessStatus.lastLoginAt
     ? new Date(accessStatus.lastLoginAt).toLocaleString('de-DE')
     : 'Noch kein Login';
@@ -215,6 +254,18 @@ function App() {
         <div className="rack-row" style={{ marginBottom: '8px' }}>
           <span>KARTEN-ID:</span>
           <span className="text-mono">{accessStatus.lastCardId}</span>
+        </div>
+
+        <div className="access-actions animate-top delay-4">
+          {accessStatus.isAdminLoggedIn ? (
+            <button className="action-btn logout-btn" onClick={handleWebLogout}>
+              SYSTEM LOGOUT
+            </button>
+          ) : (
+            <div className="nfc-hint text-mono">
+              🔖 NFC-Karte zum Anmelden nutzen
+            </div>
+          )}
         </div>
 
         <div className="logs-section">

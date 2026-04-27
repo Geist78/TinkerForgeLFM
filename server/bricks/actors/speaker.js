@@ -61,6 +61,15 @@ class Speaker {
     await this.beep(520, 220, 1);
   }
 
+  async intruder_alert() {
+    // Aggressiver Alarmton: unbekannte Karte - 15s kein Login
+    await this.beep(1800, 200, 1);
+    await this.sleep(80);
+    await this.beep(1800, 200, 1);
+    await this.sleep(80);
+    await this.beep(1800, 400, 1);
+  }
+
   async sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }

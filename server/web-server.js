@@ -40,12 +40,13 @@ function updateLiveData(sensorData, accessData = null, accessLogs = null) {
   return latestData;
 }
 
-function startWebServer(port = DEFAULT_WEB_PORT) {
+function startWebServer(port = DEFAULT_WEB_PORT, onLogin = null, onLogout = null, getUsers = null) {
   const server = http.createServer((req, res) => {
     const baseUrl = `http://${req.headers.host || `localhost:${port}`}`;
     const requestUrl = new URL(req.url || '/', baseUrl);
 
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
 
     if (req.method === 'OPTIONS') {
@@ -58,6 +59,55 @@ function startWebServer(port = DEFAULT_WEB_PORT) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(latestData));
+      return;
+    }
+
+    if (req.method === 'GET' && requestUrl.pathname === '/api/access/users') {
+      if (getUsers) {
+        const users = getUsers();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(users));
+      } else {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: 'No user provider' }));
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && requestUrl.pathname === '/api/access/login') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const { cardId } = JSON.parse(body);
+          if (onLogin && cardId) {
+            onLogin(cardId);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ status: 'ok', message: 'Login triggered' }));
+          } else {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Missing cardId or handler' }));
+          }
+        } catch (err) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && requestUrl.pathname === '/api/access/logout') {
+      if (onLogout) {
+        onLogout();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ status: 'ok', message: 'Logout triggered' }));
+      } else {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: 'No logout handler' }));
+      }
       return;
     }
 

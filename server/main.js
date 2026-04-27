@@ -4,6 +4,7 @@ const Tinkerforge = require('tinkerforge');
 const { getAllSensorData } = require('./bricks/sensors/_return_sensor_data');
 const Speaker = require('./bricks/actors/speaker');
 const RGBButton = require('./bricks/actors/rgb-button');
+const SegmentDisplay = require('./bricks/actors/segment-display');
 const { HOST, PORT } = require('./utilities/constants');
 const { startWebServer, updateLiveData } = require('./web-server');
 
@@ -24,12 +25,18 @@ let accessState = {
 let accessLogs = [];
 const MAX_ACCESS_LOGS = 100;
 
-// Auto-Logout Timer (30 Sekunden)
+// Auto-Logout Timer (60 Sekunden)
 let autoLogoutTimer = null;
-const AUTO_LOGOUT_DELAY = 30000; // 30 Sekunden
+let countdownInterval = null;
+let remainingSeconds = 0;
+const AUTO_LOGOUT_DELAY = 60000; // 60 Sekunden
+
+// Eindringling-Alarm Timer (15 Sekunden nach unbekannter Karte)
+let intruderAlarmTimer = null;
+const INTRUDER_ALARM_DELAY = 15000; // 15 Sekunden
 
 // Auto-Logout Funktion
-function resetAccessState() {
+function resetAccessState(segmentDisplay = null) {
   const wasLoggedIn = accessState.isAdminLoggedIn || accessState.lastCardRole !== ANONYM_NAME;
   accessState = {
     isAdminLoggedIn: false,
@@ -37,30 +44,66 @@ function resetAccessState() {
     lastCardId: null,
     lastCardRole: ANONYM_NAME
   };
+  
   if (autoLogoutTimer) {
     clearTimeout(autoLogoutTimer);
     autoLogoutTimer = null;
   }
+  
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+
+  if (segmentDisplay) {
+    segmentDisplay.clear();
+  }
+
   if (wasLoggedIn) {
-    console.log('[NFC] ⏰ Auto-logout: User automatically logged out after 30 seconds');
+    console.log('[NFC] ⏰ Auto-logout: User automatically logged out after 60 seconds');
     pushAccessLog({
       cardId: 'AUTO_LOGOUT',
       userName: 'System',
       success: false
     });
   }
+
+  // Eindringling-Timer auch abbrechen beim manuellen Logout
+  if (intruderAlarmTimer) {
+    clearTimeout(intruderAlarmTimer);
+    intruderAlarmTimer = null;
+  }
 }
 
 // Auto-Logout Timer starten/neu starten
-function startAutoLogoutTimer() {
-  // Vorherigen Timer abbrechen falls vorhanden
+function startAutoLogoutTimer(segmentDisplay = null) {
+  // Vorherigen Timer und Interval abbrechen falls vorhanden
   if (autoLogoutTimer) {
     clearTimeout(autoLogoutTimer);
+  }
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+  }
+  
+  remainingSeconds = AUTO_LOGOUT_DELAY / 1000;
+  
+  if (segmentDisplay) {
+    segmentDisplay.showCountdown(remainingSeconds);
+    
+    countdownInterval = setInterval(() => {
+      remainingSeconds--;
+      if (remainingSeconds >= 0) {
+        segmentDisplay.showCountdown(remainingSeconds);
+      } else {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    }, 1000);
   }
   
   // Neuen Timer starten
   autoLogoutTimer = setTimeout(() => {
-    resetAccessState();
+    resetAccessState(segmentDisplay);
   }, AUTO_LOGOUT_DELAY);
   
   console.log(`[NFC] ⏱️ Auto-logout timer started (${AUTO_LOGOUT_DELAY/1000}s)`);
@@ -196,53 +239,101 @@ function pushAccessLog({ cardId, userName, success }) {
   accessLogs = [entry, ...accessLogs].slice(0, MAX_ACCESS_LOGS);
 }
 
+async function handleNfcLogin(tagHex, speaker = null, rgbButton = null, segmentDisplay = null) {
+  if (!tagHex) return;
+
+  const wasAdminLoggedIn = accessState.isAdminLoggedIn;
+  const previousCardId = accessState.lastCardId;
+  updateAccessStateFromCard(tagHex);
+  
+  const user = getNFCUser(tagHex);
+  const mappedName = resolveNfcUserName(tagHex);
+  registerNFCUser(tagHex, user?.name === mappedName ? user.name : mappedName);
+
+  const isNewAdminLogin = accessState.isAdminLoggedIn && (!wasAdminLoggedIn || previousCardId !== accessState.lastCardId);
+  const isDeniedLoginAttempt = !accessState.isAdminLoggedIn && previousCardId !== accessState.lastCardId;
+  const isNewCardScan = previousCardId !== accessState.lastCardId;
+  
+  if (isNewCardScan) {
+    pushAccessLog({
+      cardId: accessState.lastCardId,
+      userName: accessState.lastCardRole,
+      success: accessState.isAdminLoggedIn
+    });
+        // Auto-Logout Timer starten für jede erfolgreiche Anmeldung
+      startAutoLogoutTimer(segmentDisplay); 
+  }
+  
+  if (speaker && isNewAdminLogin) {
+    try {
+      await speaker.login_success();
+    } catch (err) {
+      console.error('[Speaker] Error playing login success sound:', err);
+    }
+  }
+  if (speaker && isDeniedLoginAttempt) {
+    try {
+      await speaker.login_denied();
+    } catch (err) {
+      console.error('[Speaker] Error playing login denied sound:', err);
+    }
+  }
+}
+
 // Sensor-Daten verarbeiten (ohne Sensor-Console-Logs)
-async function processSensorData(sensorData, speaker, rgbButton = null) {
-  const { temperature, humidity, nfc } = sensorData;
+async function processSensorData(sensorData, speaker, rgbButton = null, segmentDisplay = null) {
+  const { temperature, humidity, nfc, motion } = sensorData;
 
   const temp = temperature?.celsius || null;
   const humi = humidity?.relativeHumidity || null;
   const nfcData = nfc || {};
+  const motionDetected = motion?.motion || false;
 
-  // NFC-ID zu Benutzer auflösen (ID 31 => Administration)
+  // NFC-ID zu Benutzer auflösen
   if (nfcData.tagHex) {
-    const wasAdminLoggedIn = accessState.isAdminLoggedIn;
-    const previousCardId = accessState.lastCardId;
-    updateAccessStateFromCard(nfcData.tagHex);
-    const user = getNFCUser(nfcData.tagHex);
-    const mappedName = resolveNfcUserName(nfcData.tagHex);
-    registerNFCUser(nfcData.tagHex, user?.name === mappedName ? user.name : mappedName);
+    const wasLoggedInBefore = accessState.isAdminLoggedIn || accessState.lastCardRole !== ANONYM_NAME;
+    await handleNfcLogin(nfcData.tagHex, speaker, rgbButton, segmentDisplay);
 
-    // Login-Sound nur bei neuem/erneutem Admin-Login
-    const isNewAdminLogin = accessState.isAdminLoggedIn && (!wasAdminLoggedIn || previousCardId !== accessState.lastCardId);
-    const isDeniedLoginAttempt = !accessState.isAdminLoggedIn && previousCardId !== accessState.lastCardId;
-    const isNewCardScan = previousCardId !== accessState.lastCardId;
-    
-    if (isNewCardScan) {
-      pushAccessLog({
-        cardId: accessState.lastCardId,
-        userName: accessState.lastCardRole,
-        success: accessState.isAdminLoggedIn
-      });
-      
-      // Auto-Logout Timer starten für jede erfolgreiche Anmeldung
-      startAutoLogoutTimer();
-    }
-    
-    if (speaker && isNewAdminLogin) {
-      try {
-        await speaker.login_success();
-      } catch (err) {
-        console.error('[Speaker] Error playing login success sound:', err);
+    // Eindringling-Alarm: Wenn Karte erkannt aber KEIN Login (unbekannte/abgelehnte Karte)
+    const isNowLoggedIn = accessState.isAdminLoggedIn || accessState.lastCardRole !== ANONYM_NAME;
+    if (!isNowLoggedIn && !wasLoggedInBefore) {
+      // Neue unbekannte Karte wurde gescannt - 15s Alarm-Timer starten
+      if (!intruderAlarmTimer) {
+        console.log('[NFC] ⚠️ Unknown card detected! Starting 15s intruder alarm timer...');
+        intruderAlarmTimer = setTimeout(async () => {
+          intruderAlarmTimer = null;
+          // Nur Alarm wenn immer noch nicht eingeloggt
+          if (!accessState.isAdminLoggedIn && accessState.lastCardRole === ANONYM_NAME) {
+            console.log('[NFC] 🚨 INTRUDER ALARM! Unknown card scanned and no login after 15s!');
+            pushAccessLog({
+              cardId: 'INTRUDER_ALARM',
+              userName: 'System',
+              success: false
+            });
+            if (speaker) {
+              try {
+                await speaker.intruder_alert();
+              } catch (err) {
+                console.error('[Speaker] Intruder alert error:', err);
+              }
+            }
+          }
+        }, INTRUDER_ALARM_DELAY);
+      }
+    } else if (isNowLoggedIn) {
+      // Erfolgreich eingeloggt - Eindringling-Timer abbrechen
+      if (intruderAlarmTimer) {
+        clearTimeout(intruderAlarmTimer);
+        intruderAlarmTimer = null;
+        console.log('[NFC] ✔️ Login successful - intruder alarm cancelled');
       }
     }
-    if (speaker && isDeniedLoginAttempt) {
-      try {
-        await speaker.login_denied();
-      } catch (err) {
-        console.error('[Speaker] Error playing login denied sound:', err);
-      }
-    }
+  }
+
+  // Bewegung erkannt -> Countdown erneuern wenn jemand eingeloggt ist
+  if (motionDetected && (accessState.isAdminLoggedIn || accessState.lastCardRole !== ANONYM_NAME)) {
+    console.log('[MOTION] 🏃 Motion detected! Resetting logout timer...');
+    startAutoLogoutTimer(segmentDisplay);
   }
 
   // Play Alarm wenn nötig
@@ -257,6 +348,8 @@ async function runSensorMonitoring() {
   let ipcon = null;
   let rgbButton = null;
   let rgbIpcon = null;
+  let segmentDisplay = null;
+  let segmentIpcon = null;
   let webServer = null;
   let updateInterval = null;
 
@@ -290,6 +383,16 @@ async function runSensorMonitoring() {
     if (webServer?.server) {
       try {
         webServer.server.close();
+      } catch (_) {}
+    }
+    if (segmentIpcon) {
+      try {
+        segmentIpcon.disconnect();
+      } catch (_) {}
+    }
+    if (segmentDisplay) {
+      try {
+        segmentDisplay.clear();
       } catch (_) {}
     }
     console.log('[Main] ✓ All connections closed. Exiting...');
@@ -342,11 +445,39 @@ async function runSensorMonitoring() {
     console.log('[Main] Continuing without RGB button...');
   }
 
+  // Segment Display initialisieren
+  try {
+    segmentIpcon = new Tinkerforge.IPConnection();
+    segmentDisplay = new SegmentDisplay(segmentIpcon);
+
+    segmentIpcon.connect(HOST, PORT, (error) => {
+      if (error) {
+        console.error('[Segment Display] Connect error:', error);
+      }
+    });
+
+    segmentIpcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
+      try {
+        await segmentDisplay.init();
+        console.log('[Segment Display] Initialized successfully');
+      } catch (err) {
+        console.error('[Segment Display] Init error:', err);
+      }
+    });
+  } catch (err) {
+    console.error('[Main] Failed to initialize segment display:', err);
+  }
+
   console.log('[Main] Starting live sensor monitoring...');
   console.log('[Main] Press Ctrl+C to stop');
 
   try {
-    webServer = startWebServer();
+    webServer = startWebServer(
+      undefined,
+      (cardId) => handleNfcLogin(cardId, speaker, rgbButton, segmentDisplay),
+      () => resetAccessState(segmentDisplay),
+      () => loadNFCUsers()
+    );
   } catch (err) {
     console.error('[Main] Failed to start web server:', err);
   }
@@ -355,7 +486,7 @@ async function runSensorMonitoring() {
   updateInterval = setInterval(async () => {
     try {
       const sensorData = await getAllSensorData();
-      await processSensorData(sensorData, speaker, rgbButton);
+      await processSensorData(sensorData, speaker, rgbButton, segmentDisplay);
       updateLiveData(sensorData, accessState, accessLogs);
     } catch (err) {
       console.error('[Main] Error updating sensor data:', err);
