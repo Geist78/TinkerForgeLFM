@@ -30,7 +30,7 @@ function App() {
     isAdminLoggedIn: false,
     lastLoginAt: null,
     lastCardId: '-',
-    lastCardRole: 'Unbekannter Benutzer'
+    lastCardRole: 'Unknown'
   });
 
   useEffect(() => {
@@ -58,7 +58,7 @@ function App() {
           isAdminLoggedIn: Boolean(liveData.access?.isAdminLoggedIn),
           lastLoginAt: liveData.access?.lastLoginAt ?? null,
           lastCardId: liveData.access?.lastCardId ?? '-',
-          lastCardRole: liveData.access?.lastCardRole ?? 'Unbekannter Benutzer'
+          lastCardRole: liveData.access?.lastCardRole ?? 'Unknown'
         });
         setMasterLogs(Array.isArray(liveData.accessLogs) ? liveData.accessLogs : []);
         setHistory(h => ({
@@ -231,7 +231,7 @@ function App() {
       <aside className="dashboard-section right-panel animate-right delay-1">
         <div className="access-header clickable" onClick={() => setShowLogModal(true)}>
           <span className="label heading-accent">ZUGRIFFSKONTROLLE</span>
-          <div className="live-indicator text-mono">{accessStatus.isAdminLoggedIn ? 'ADMIN ONLINE' : 'UNBEKANNTER BENUTZER'}</div>
+          <div className="live-indicator text-mono">{accessStatus.isAdminLoggedIn ? 'ADMIN ONLINE' : 'Unknown'}</div>
         </div>
 
         <div className="counters">
@@ -283,7 +283,7 @@ function App() {
       </aside>
 
 
-      
+
 
       <HistoryModal selectedMetric={selectedMetric} history={history} onClose={() => setSelectedMetric(null)} />
       {showLogModal && <AccessLogModal logs={masterLogs} onClose={() => setShowLogModal(false)} />}

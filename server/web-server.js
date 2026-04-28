@@ -14,7 +14,7 @@ let latestData = {
     isAdminLoggedIn: false,
     lastLoginAt: null,
     lastCardId: null,
-    lastCardRole: 'Unbekannter Benutzer'
+    lastCardRole: 'Unknown User'
   },
   accessLogs: []
 };

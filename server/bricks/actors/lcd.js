@@ -195,6 +195,7 @@ class LCDDisplay {
 
     this.busy             = false;
     this._transitionTimer = null;
+    this.onLogoutRequest  = null; // Callback für Logout-Button
   }
 
   // ── Initialisierung ───────────────────────────────────────────────────────
@@ -313,7 +314,11 @@ class LCDDisplay {
     if (!btn) return;
 
     if (btn.pageIdx === null) {
-      this.logout();
+      if (this.onLogoutRequest) {
+        this.onLogoutRequest();
+      } else {
+        this.logout();
+      }
     } else {
       this.state.selectedPage = btn.pageIdx;
       this._goTo(SCREEN.SENSOR);
@@ -348,13 +353,6 @@ class LCDDisplay {
   // ────────────────────────────────────────────────────────────────────────────
 
   // ── Login ─────────────────────────────────────────────────────────────────
-  //
-  //  ┌────────────────────────────┐
-  //  │                            │
-  //  │  Bitte                     │  y=12  FONT_6X16
-  //  │  einloggen...              │  y=34  FONT_6X16
-  //  │                            │
-  //  └────────────────────────────┘
 
   _renderLogin() {
     const { COLOR_BLACK: BLK, FONT_6X16 } = Tinkerforge.BrickletLCD128x64;
@@ -363,76 +361,51 @@ class LCDDisplay {
   }
 
   // ── Welcome ───────────────────────────────────────────────────────────────
-  //
-  //  ┌────────────────────────────┐
-  //  │  Willkommen                │  y=4   FONT_6X16
-  //  │  [username]                │  y=26  FONT_6X16
-  //  │  (wird geladen...)         │  y=50  FONT_6X8
-  //  └────────────────────────────┘
 
   _renderWelcome() {
     const { COLOR_BLACK: BLK, FONT_6X16, FONT_6X8 } = Tinkerforge.BrickletLCD128x64;
-    const name = this.state.username.substring(0, 14); // 14 × 6px = 84px < 128px ✓
+    const name = this.state.username.substring(0, 14);
     this.bricklet.drawText(4,  4, FONT_6X16, BLK, 'Willkommen');
     this.bricklet.drawText(4, 26, FONT_6X16, BLK, name || 'Benutzer');
     this.bricklet.drawText(4, 50, FONT_6X8,  BLK, '(wird geladen...)');
   }
 
   // ── Home ──────────────────────────────────────────────────────────────────
-  //
-  //  Registriert 6 GUI-Buttons via setGUIButton().
-  //  Klick-Events kommen über CALLBACK_GUI_BUTTON_PRESSED → _onButtonPressed().
 
   _renderHome() {
     for (const btn of HOME_BUTTONS) {
-      // setGUIButton(index, posX, posY, width, height, text)
       this.bricklet.setGUIButton(btn.index, btn.x, btn.y, btn.w, btn.h, btn.label);
     }
   }
 
   // ── Sensor ────────────────────────────────────────────────────────────────
-  //
-  //  y  0– 8 : Titel  +  Swipe-Hint rechts oben  ("↕=Hm")
-  //  y  9    : Trennlinie
-  //  y 10–53 : Graph  (writePixels, flat boolean[])
-  //  y 54    : Untere Achslinie
-  //  y 55–63 : Aktueller Wert  +  Wertebereich
 
   _renderSensor() {
     const { COLOR_BLACK: BLK, FONT_6X8 } = Tinkerforge.BrickletLCD128x64;
     const page = this.pages[this.state.selectedPage];
 
-    // Titel (max 13 Zeichen, damit der Hint rechts Platz hat)
     this.bricklet.drawText(0, 0, FONT_6X8, BLK, page.title.substring(0, 13));
-
-    // Swipe-Hint: "\x12" = ↕ in Codepage 437 (5 Zeichen × 6px = 30px von rechts)
     this.bricklet.drawText(DISP_W - 5 * 6, 0, FONT_6X8, BLK, '\x12=Hm');
-
-    // Trennlinie
     this.bricklet.drawLine(0, 9, DISP_W - 1, 9, BLK);
 
     const validVals = page.buffer.validValues();
 
     if (validVals.length >= 2) {
       const lo = page.fixedMin ?? Math.min(...validVals);
-      const hi = page.fixedMax ?? Math.max(...validVals);
+      const hi = page.fixedMax ?? Math.max(...vals);
 
-      // writePixels erwartet flat boolean[] — buildGraphPixels liefert genau das ✓
       this.bricklet.writePixels(
         GRAPH_X, GRAPH_Y,
         GRAPH_X + GRAPH_W - 1, GRAPH_Y + GRAPH_H - 1,
         buildGraphPixels(page)
       );
 
-      // Untere Achslinie (y=54)
       this.bricklet.drawLine(0, GRAPH_Y + GRAPH_H, DISP_W - 1, GRAPH_Y + GRAPH_H, BLK);
 
-      // Aktueller Wert (links unten)
       const current    = validVals[validVals.length - 1];
       const currentStr = page.format(current);
       this.bricklet.drawText(0, 56, FONT_6X8, BLK, currentStr.substring(0, 14));
 
-      // Wertebereich (rechts unten, nur analoge Sensoren)
       if (!page.isBoolean) {
         const rangeStr = `${lo.toFixed(0)}-${hi.toFixed(0)}${page.unit}`;
         const rx = DISP_W - rangeStr.length * 6;
@@ -448,12 +421,6 @@ class LCDDisplay {
   }
 
   // ── Goodbye ───────────────────────────────────────────────────────────────
-  //
-  //  ┌────────────────────────────┐
-  //  │  Auf                       │  y=4   FONT_6X16
-  //  │  Wiedersehen               │  y=26  FONT_6X16
-  //  │  [username]!               │  y=50  FONT_6X8
-  //  └────────────────────────────┘
 
   _renderGoodbye() {
     const { COLOR_BLACK: BLK, FONT_6X16, FONT_6X8 } = Tinkerforge.BrickletLCD128x64;
@@ -466,79 +433,67 @@ class LCDDisplay {
   }
 }
 
-// ── Sensoren & Timer ──────────────────────────────────────────────────────────
+module.exports = LCDDisplay;
 
-const ipcon = new Tinkerforge.IPConnection();
-const lcd   = new LCDDisplay(ipcon);
+if (require.main === module) {
+  const ipcon = new Tinkerforge.IPConnection();
+  const lcd   = new LCDDisplay(ipcon);
 
-const sensors = {
-  temp:     new TemperatureSensor(ipcon),
-  light:    new LightSensor(ipcon),
-  humidity: new HumiditySensor(ipcon),
-  motion:   new MotionSensor(ipcon),
-};
+  const sensors = {
+    temp:     new TemperatureSensor(ipcon),
+    light:    new LightSensor(ipcon),
+    humidity: new HumiditySensor(ipcon),
+    motion:   new MotionSensor(ipcon),
+  };
 
-let readTimer   = null;
-let renderTimer = null;
+  let readTimer   = null;
+  let renderTimer = null;
 
-async function tick() {
-  for (const sensor of Object.values(sensors)) {
-    if (typeof sensor.readOnce === 'function') {
-      try { await sensor.readOnce(); } catch (_) {}
+  async function tick() {
+    for (const sensor of Object.values(sensors)) {
+      if (typeof sensor.readOnce === 'function') {
+        try { await sensor.readOnce(); } catch (_) {}
+      }
+    }
+    for (const page of lcd.pages) {
+      page.buffer.push(page.getValue(sensors));
     }
   }
-  for (const page of lcd.pages) {
-    page.buffer.push(page.getValue(sensors));
-  }
-}
 
-// ── Verbindung ────────────────────────────────────────────────────────────────
+  ipcon.connect(HOST, PORT, err => {
+    if (err) { console.error('❌ Verbindungsfehler:', err); process.exit(1); }
+  });
 
-ipcon.connect(HOST, PORT, err => {
-  if (err) { console.error('❌ Verbindungsfehler:', err); process.exit(1); }
-});
+  ipcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
+    console.log('✅ Mit Brick Daemon verbunden');
 
-ipcon.on(Tinkerforge.IPConnection.CALLBACK_CONNECTED, async () => {
-  console.log('✅ Mit Brick Daemon verbunden');
-
-  for (const [name, sensor] of Object.entries(sensors)) {
-    try   { await sensor.init(); console.log(`   ✓ ${name} bereit`); }
-    catch (err) { console.warn(`   ⚠  ${name} nicht verfügbar: ${err.message}`); }
-  }
-
-  try   { await lcd.init(LCD_DISPLAY_UID); }
-  catch (err) { console.error('❌ LCD-Init fehlgeschlagen:', err.message); process.exit(1); }
-
-  // Login-Screen anzeigen
-  await lcd.render();
-
-  // Sensor-Daten immer lesen (auch auf anderen Screens → Buffer füllen)
-  readTimer = setInterval(() => tick().catch(console.error), READ_MS);
-
-  // Display nur neu rendern wenn auf Sensor-Screen (Daten ändern sich).
-  // Home / Login / Welcome / Goodbye sind statisch und werden
-  // nur durch State-Übergänge neu gerendert.
-  renderTimer = setInterval(() => {
-    if (lcd.state.screen === SCREEN.SENSOR) {
-      lcd.render().catch(console.error);
+    for (const [name, sensor] of Object.entries(sensors)) {
+      try   { await sensor.init(); console.log(`   ✓ ${name} bereit`); }
+      catch (err) { console.warn(`   ⚠  ${name} nicht verfügbar: ${err.message}`); }
     }
-  }, RENDER_MS);
-});
 
-// ── Graceful Shutdown ─────────────────────────────────────────────────────────
+    try   { await lcd.init(LCD_DISPLAY_UID); }
+    catch (err) { console.error('❌ LCD-Init fehlgeschlagen:', err.message); process.exit(1); }
 
-function shutdown() {
-  clearInterval(readTimer);
-  clearInterval(renderTimer);
-  clearTimeout(lcd._transitionTimer);
-  for (const sensor of Object.values(sensors)) {
-    if (typeof sensor.stopPolling === 'function') sensor.stopPolling();
+    await lcd.render();
+    readTimer = setInterval(() => tick().catch(console.error), READ_MS);
+    renderTimer = setInterval(() => {
+      if (lcd.state.screen === SCREEN.SENSOR) {
+        lcd.render().catch(console.error);
+      }
+    }, RENDER_MS);
+  });
+
+  function shutdown() {
+    clearInterval(readTimer);
+    clearInterval(renderTimer);
+    clearTimeout(lcd._transitionTimer);
+    for (const sensor of Object.values(sensors)) {
+      if (typeof sensor.stopPolling === 'function') sensor.stopPolling();
+    }
+    try { ipcon.disconnect(); } catch (_) {}
   }
-  try { ipcon.disconnect(); } catch (_) {}
+
+  process.on('SIGINT',  () => { shutdown(); process.exit(0); });
+  process.on('SIGTERM', () => { shutdown(); process.exit(0); });
 }
-
-process.on('SIGINT',  () => { shutdown(); process.exit(0); });
-process.on('SIGTERM', () => { shutdown(); process.exit(0); });
-
-// ── Export für externe Auth-Integration ──────────────────────────────────────
-module.exports = { lcd };
