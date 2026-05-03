@@ -89,34 +89,7 @@ function App() {
     setSelectedMetric({ id, ...config[id] });
   };
 
-  const [availableUsers, setAvailableUsers] = useState({});
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch(LIVE_DATA_API_URL.replace('/live-data', '/access/users'));
-        if (response.ok) {
-          const users = await response.json();
-          setAvailableUsers(users);
-        }
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    fetchUsers();
-  }, []);
-
-  const handleWebLogin = async (cardId) => {
-    try {
-      await fetch(LIVE_DATA_API_URL.replace('/live-data', '/access/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId })
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-    }
-  };
 
   const handleWebLogout = async () => {
     try {

@@ -1,5 +1,49 @@
 import { useEffect, useRef } from 'react';
 
+class Particle {
+  constructor(canvasWidth, canvasHeight) {
+    this.x = Math.random() * canvasWidth;
+    this.y = Math.random() * canvasHeight;
+    this.vx = (Math.random() - 0.5) * 0.5;
+    this.vy = (Math.random() - 0.5) * 0.5;
+    this.radius = Math.random() * 1.5 + 0.5;
+  }
+
+  update(canvasWidth, canvasHeight, mouse) {
+    // Base velocity
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Mouse interaction: PUSH AWAY (Repulsion)
+    if (mouse.x !== null && mouse.y !== null) {
+      const dx = this.x - mouse.x;
+      const dy = this.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const pushRadius = 150; // Distance at which they start pushing away
+
+      if (dist < pushRadius) {
+        const force = (pushRadius - dist) / pushRadius;
+        const angle = Math.atan2(dy, dx);
+        const moveX = Math.cos(angle) * force * 4;
+        const moveY = Math.sin(angle) * force * 4;
+        
+        this.x += moveX;
+        this.y += moveY;
+      }
+    }
+
+    if (this.x < 0 || this.x > canvasWidth) this.vx *= -1;
+    if (this.y < 0 || this.y > canvasHeight) this.vy *= -1;
+  }
+
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 255, 213, 0.3)';
+    ctx.fill();
+  }
+}
+
 const BackgroundMograph = () => {
   const canvasRef = useRef(null);
 
@@ -30,53 +74,9 @@ const BackgroundMograph = () => {
       mouse.y = null;
     };
 
-    class Particle {
-      constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.vx = (Math.random() - 0.5) * 0.5;
-        this.vy = (Math.random() - 0.5) * 0.5;
-        this.radius = Math.random() * 1.5 + 0.5;
-      }
-
-      update() {
-        // Base velocity
-        this.x += this.vx;
-        this.y += this.vy;
-
-        // Mouse interaction: PUSH AWAY (Repulsion)
-        if (mouse.x !== null && mouse.y !== null) {
-          const dx = this.x - mouse.x;
-          const dy = this.y - mouse.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const pushRadius = 150; // Distance at which they start pushing away
-
-          if (dist < pushRadius) {
-            const force = (pushRadius - dist) / pushRadius;
-            const angle = Math.atan2(dy, dx);
-            const moveX = Math.cos(angle) * force * 4;
-            const moveY = Math.sin(angle) * force * 4;
-            
-            this.x += moveX;
-            this.y += moveY;
-          }
-        }
-
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-      }
-
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 255, 213, 0.3)';
-        ctx.fill();
-      }
-    }
-
     const init = () => {
       resize();
-      particles = Array.from({ length: particleCount }, () => new Particle());
+      particles = Array.from({ length: particleCount }, () => new Particle(canvas.width, canvas.height));
     };
 
     const drawLines = () => {
@@ -114,8 +114,8 @@ const BackgroundMograph = () => {
       }
 
       particles.forEach(p => {
-        p.update();
-        p.draw();
+        p.update(canvas.width, canvas.height, mouse);
+        p.draw(ctx);
       });
 
       drawLines();
